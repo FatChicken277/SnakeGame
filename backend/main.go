@@ -36,6 +36,7 @@ func main() {
 	defer dbConn.Close(context.Background())
 
 	router.Route("/v1/players", func(r chi.Router) {
+		r.Post("/register", handlers.PlayerRegister(dbConn))
 		r.Get("/leaderboard", handlers.PlayerLeaderboard(dbConn))
 	})
 
