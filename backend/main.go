@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/cors"
+	"github.com/go-chi/jwtauth"
 )
 
 const (
@@ -35,8 +36,11 @@ func main() {
 	}
 	defer dbConn.Close(context.Background())
 
+	tokenAuth := jwtauth.New("HS256", []byte("secret"), nil)
+
 	router.Route("/v1/players", func(r chi.Router) {
 		r.Post("/register", handlers.PlayerRegister(dbConn))
+		r.Post("/login", handlers.PlayerLogin(dbConn, tokenAuth))
 		r.Get("/leaderboard", handlers.PlayerLeaderboard(dbConn))
 	})
 
