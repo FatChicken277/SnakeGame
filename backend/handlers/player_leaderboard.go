@@ -1,9 +1,9 @@
 package handlers
 
 import (
+	"net/http"
 	"SnakeGame/backend/models"
 	"SnakeGame/backend/storage"
-	"net/http"
 
 	"github.com/jackc/pgx/v4"
 )
