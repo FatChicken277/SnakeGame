@@ -42,6 +42,12 @@ func main() {
 		r.Post("/register", handlers.PlayerRegister(dbConn))
 		r.Post("/login", handlers.PlayerLogin(dbConn, tokenAuth))
 		r.Get("/leaderboard", handlers.PlayerLeaderboard(dbConn))
+
+		r.Group(func(r chi.Router) {
+			r.Use(jwtauth.Verifier(tokenAuth))
+			r.Use(jwtauth.Authenticator)
+			r.Put("/score", handlers.UpdatePlayerScore(dbConn))
+		})
 	})
 
 	fmt.Println("Server running in localhost" + port)
