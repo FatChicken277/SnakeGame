@@ -72,3 +72,37 @@ func TestUpdatePlayerScore(t *testing.T) {
 	_, err = dbConn.Exec(context.Background(), query)
 	c.NoError(err)
 }
+
+func TestGetPlayersLeaderboard(t *testing.T) {
+	c := require.New(t)
+
+	dbSource := "postgresql://admin@localhost:26257/snake_test?sslmode=disable"
+	dbConn, err := DBConection(dbSource)
+	c.NoError(err)
+	defer dbConn.Close(context.Background())
+
+	query := "INSERT INTO players (username, password, max_score) VALUES ($1, $2, $3), ($4, $2, $5);"
+	_, err = dbConn.Exec(context.Background(), query, "user", "password", 30, "user2", 31)
+	c.NoError(err)
+
+	rows, err := GetPlayersLeaderboard(dbConn)
+	c.NoError(err)
+
+	var playerList []models.PlayerModel
+
+	for rows.Next() {
+		player := models.PlayerModel{}
+
+		err = rows.Scan(&player.Username, &player.MaxScore)
+		c.NoError(err)
+
+		playerList = append(playerList, player)
+	}
+
+	c.Equal(uint(31), playerList[0].MaxScore)
+	c.Equal(uint(30), playerList[1].MaxScore)
+
+	query = "DELETE FROM players WHERE username = 'user' OR username = 'user2';"
+	_, err = dbConn.Exec(context.Background(), query)
+	c.NoError(err)
+}
