@@ -1,12 +1,12 @@
 package handlers
 
 import (
+	"SnakeGame/backend/storage"
 	"bytes"
 	"context"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"snake_game/backend/storage"
 	"testing"
 
 	"github.com/go-chi/jwtauth"

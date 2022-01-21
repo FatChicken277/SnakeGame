@@ -1,11 +1,11 @@
 package handlers
 
 import (
+	"SnakeGame/backend/storage"
 	"context"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"snake_game/backend/storage"
 	"testing"
 
 	"github.com/stretchr/testify/require"
