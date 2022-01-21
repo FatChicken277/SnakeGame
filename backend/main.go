@@ -6,15 +6,16 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/cors"
 	"github.com/go-chi/jwtauth"
 )
 
-const (
+var (
 	// DatabaseSource reference to the database path
-	DatabaseSource = "postgresql://admin@localhost:26257/snake?sslmode=disable"
+	DatabaseSource = os.ExpandEnv("postgresql://${CLUSER}:${CLPWD}@${CLHOST}:${CLPORT}/${CLDB}?sslmode=verify-full&sslrootcert=${CAPATH}&options=--cluster%3Dsnakee-21")
 )
 
 func main() {
@@ -36,7 +37,7 @@ func main() {
 	}
 	defer dbConn.Close(context.Background())
 
-	tokenAuth := jwtauth.New("HS256", []byte("secret"), nil)
+	tokenAuth := jwtauth.New("HS256", []byte(os.ExpandEnv("${SECRET}")), nil)
 
 	router.Route("/v1/players", func(r chi.Router) {
 		r.Post("/register", handlers.PlayerRegister(dbConn))
