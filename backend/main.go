@@ -15,7 +15,7 @@ import (
 
 var (
 	// DatabaseSource reference to the database path
-	DatabaseSource = os.ExpandEnv("postgresql://${CLUSER}:${CLPWD}@${CLHOST}:${CLPORT}/${CLDB}?sslmode=verify-full&sslrootcert=${CAPATH}&options=--cluster%3Dsnakee-21")
+	DatabaseSource = os.ExpandEnv("postgresql://${CLUSER}:${CLPWD}@${CLHOST}:${CLPORT}/${CLDB}?sslmode=verify-full&sslrootcert=${CAPATH}&options=--cluster%3Dlost-yak-11")
 )
 
 func main() {
