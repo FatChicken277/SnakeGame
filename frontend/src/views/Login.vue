@@ -1,13 +1,12 @@
 <template>
   <div class="login">
     <BackgroundImage>
-      <LoginComponent/>
+      <LoginComponent />
     </BackgroundImage>
   </div>
 </template>
 
 <script>
-
 import LoginComponent from '@/components/Home/LoginComponent.vue';
 import BackgroundImage from '@/components/Home/BackgroundImage.vue';
 
