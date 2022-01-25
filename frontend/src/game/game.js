@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import BootScene from './scenes/BootScene';
+import MenuScene from './scenes/MenuScene';
 
 function launch(containerId) {
   return new Phaser.Game({
@@ -19,7 +20,7 @@ function launch(containerId) {
         debug: false,
       },
     },
-    scene: [BootScene],
+    scene: [BootScene, MenuScene],
   });
 }
 
