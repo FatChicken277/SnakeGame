@@ -4,6 +4,7 @@
       color="secondary"
       dark
       class="px-9"
+      absolute
   >
     <div class="d-flex align-center">
       <v-img
