@@ -6,7 +6,7 @@
       class="px-9"
       absolute
   >
-    <router-link to="/" style="text-decoration: none; color: white;">
+    <router-link to="/" v-if="!loggedIn" style="text-decoration: none; color: white;">
       <div class="d-flex align-center">
         <v-img
             alt="Snake Logo"
