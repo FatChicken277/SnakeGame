@@ -6,16 +6,18 @@
       class="px-9"
       absolute
   >
-    <div class="d-flex align-center">
-      <v-img
-          alt="Snake Logo"
-          class="shrink mr-2"
-          src="../assets/logo.png"
-          transition="scale-transition"
-          width="50"
-      />
-      <h1 style="text-shadow: 4px 4px black;">Snakee</h1>
-    </div>
+    <router-link to="/" v-if="!loggedIn" style="text-decoration: none; color: white;">
+      <div class="d-flex align-center">
+        <v-img
+            alt="Snake Logo"
+            class="shrink mr-2"
+            src="../assets/logo.png"
+            transition="scale-transition"
+            width="50"
+        />
+        <h1 style="text-shadow: 4px 4px black;">Snakee</h1>
+      </div>
+    </router-link>
 
     <v-spacer></v-spacer>
 

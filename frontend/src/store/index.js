@@ -4,7 +4,8 @@ import axios from 'axios';
 
 Vue.use(Vuex);
 
-const baseURL = 'http://localhost:3000/v1/players/';
+const baseURL = process.env.VUE_APP_BASE_URL;
+
 export default new Vuex.Store({
   state: {
     token: localStorage.getItem('token') || null,
@@ -23,12 +24,29 @@ export default new Vuex.Store({
     },
   },
   actions: {
+    register(context, credentials) {
+      return new Promise((resolve, reject) => {
+        axios
+          .post(`${baseURL}register`, {
+            username: credentials.username,
+            password: credentials.password,
+            password_confirm: credentials.passwordConfirm,
+          })
+          .then((response) => {
+            resolve(response);
+          })
+          .catch((err) => {
+            reject(err);
+          });
+      });
+    },
     signIn(context, credentials) {
       return new Promise((resolve, reject) => {
-        axios.post(`${baseURL}login`, {
-          username: credentials.username,
-          password: credentials.password,
-        })
+        axios
+          .post(`${baseURL}login`, {
+            username: credentials.username,
+            password: credentials.password,
+          })
           .then((response) => {
             const { token } = response.data;
 
@@ -45,6 +63,5 @@ export default new Vuex.Store({
       context.commit('destoyToken');
     },
   },
-  modules: {
-  },
+  modules: {},
 });
