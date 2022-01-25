@@ -1,17 +1,26 @@
 <template>
   <v-app>
-    <v-main>
+    <v-main class="pt-0">
       <router-view name="header"/>
-       <router-view/>
+        <fade-transition
+          origin="center"
+          mode="out-in"
+          :duration="250"
+        >
+          <router-view/>
+        </fade-transition>
       <router-view name="footer"/>
     </v-main>
   </v-app>
 </template>
 
 <script>
+import { FadeTransition } from 'vue2-transitions';
+
 export default {
   name: 'App',
   components: {
+    FadeTransition,
   },
   data: () => ({
     //
