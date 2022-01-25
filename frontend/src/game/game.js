@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import BootScene from './scenes/BootScene';
 
 function launch(containerId) {
   return new Phaser.Game({
@@ -18,7 +19,7 @@ function launch(containerId) {
         debug: false,
       },
     },
-    scene: [],
+    scene: [BootScene],
   });
 }
 
