@@ -2,7 +2,7 @@
   <div class="game">
     <v-container class="fill-height">
       <v-row justify="center" style="margin-top: 15vh;">
-        <v-col cols="8" xs="12" sm="12" md="12" lg="8">
+        <v-col cols="12" xs="12" sm="12" md="12" lg="8">
           <v-sheet
             class="game-sheet px-5"
             rounded
@@ -13,7 +13,7 @@
           </v-sheet>
         </v-col>
         <v-spacer />
-        <v-col cols="3" xs="10" sm="10" md="10" lg="3">
+        <v-col cols="10" xs="10" sm="10" md="10" lg="3">
           <LeaderboardComponent />
         </v-col>
       </v-row>
