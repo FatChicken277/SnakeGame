@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/jwtauth"
 	"github.com/jackc/pgx/v4"
@@ -17,7 +18,10 @@ func getAndVerifyUpdateScoreParams(dbConn *pgx.Conn, r *http.Request, player *mo
 		return err
 	}
 
-	player.PlayerID = int(claims["player_id"].(float64)) + 1
+	player.PlayerID, err = strconv.Atoi(claims["player_id"].(string))
+	if err != nil {
+		return err
+	}
 
 	query := "SELECT username FROM players WHERE player_id = $1;"
 	row := dbConn.QueryRow(context.Background(), query, player.PlayerID)
