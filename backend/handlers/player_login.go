@@ -5,6 +5,7 @@ import (
 	"SnakeGame/backend/models"
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-chi/jwtauth"
@@ -45,7 +46,7 @@ func PlayerLogin(dbConn *pgx.Conn, tokenAuth *jwtauth.JWTAuth) http.HandlerFunc 
 			return
 		}
 
-		_, tokenString, err := tokenAuth.Encode(jwt.MapClaims{"player_id": int64(player.PlayerID)})
+		_, tokenString, err := tokenAuth.Encode(jwt.MapClaims{"player_id": strconv.Itoa(player.PlayerID)})
 		if err != nil {
 			LogError(NewErrorResponse(ErrorResponseInternalServerError, w, err.Error()))
 			return
@@ -57,4 +58,3 @@ func PlayerLogin(dbConn *pgx.Conn, tokenAuth *jwtauth.JWTAuth) http.HandlerFunc 
 		LogError(NewResponse(resp, w))
 	}
 }
-
