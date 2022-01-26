@@ -4,7 +4,6 @@ import (
 	"SnakeGame/backend/handlers"
 	"SnakeGame/backend/storage"
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 
@@ -15,15 +14,14 @@ import (
 
 var (
 	// DatabaseSource reference to the database path
-	DatabaseSource = os.ExpandEnv("postgresql://${CLUSER}:${CLPWD}@${CLHOST}:${CLPORT}/${CLDB}?sslmode=verify-full&sslrootcert=${CAPATH}&options=--cluster%3D${DB}")
+	DatabaseSource = os.ExpandEnv("postgresql://${CLUSER}:${CLPWD}@${CLHOST}:${CLPORT}/${CLDB}?sslmode=verify-full&sslrootcert=${CAPATH}&options=--cluster%3D${CLNAME}")
 )
 
 func main() {
-	port := ":3000"
 	router := chi.NewRouter()
 
 	router.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   []string{os.ExpandEnv("${ALLOWEDORIGINS}*")},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"link"},
@@ -51,8 +49,7 @@ func main() {
 		})
 	})
 
-	fmt.Println("Server running in localhost" + port)
-	err = http.ListenAndServe(port, router)
+	err = http.ListenAndServe(":"+os.Getenv("PORT"), router)
 	if err != nil {
 		handlers.LogError(err)
 	}
