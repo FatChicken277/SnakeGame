@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
 import BootScene from './scenes/BootScene';
 import MenuScene from './scenes/MenuScene';
+import PlayScene from './scenes/PlayScene';
 
 function launch(containerId) {
   return new Phaser.Game({
-    type: Phaser.AUTO,
+    type: Phaser.CANVAS,
     backgroundColor: '#96bb58',
     scale: {
       width: 1920,
@@ -13,6 +14,11 @@ function launch(containerId) {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
+    fps: {
+      target: 60,
+      min: 60,
+      forceSetTimeOut: true,
+    },
     physics: {
       default: 'arcade',
       arcade: {
@@ -20,7 +26,7 @@ function launch(containerId) {
         debug: false,
       },
     },
-    scene: [BootScene, MenuScene],
+    scene: [BootScene, PlayScene, MenuScene],
   });
 }
 
