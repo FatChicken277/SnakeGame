@@ -15,7 +15,7 @@ jobs:
         working-directory: ./frontend
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          path: ./frontend
+          entryPoint: ./frontend
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_HELICAL_HISTORY_265121 }}'
           channelId: live
