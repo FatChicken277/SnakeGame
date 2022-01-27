@@ -1,6 +1,7 @@
 import { Scene, Actions, Math as PhaserMath } from 'phaser';
 import axios from 'axios';
 import background from '@/game/assets/background.svg';
+import fullscreen from '@/game/assets/fullscreen.png';
 import snakeHead from '@/game/assets/head.svg';
 import snakeBody from '@/game/assets/body.svg';
 import greenApple from '@/game/assets/green-apple.svg';
@@ -15,6 +16,7 @@ const WIDTH = 1920;
 const HEIGHT = 1080;
 
 const BACKGROUND = 'background';
+const FULLSCREEN = 'fullscreen';
 const SNAKE_HEAD = 'snake-head';
 const SNAKE_BODY = 'snake-body';
 const GREEN_APPLE = 'green-apple';
@@ -49,6 +51,8 @@ export default class PlayScene extends Scene {
     this.load.image(HORIZONTAL_OBSTACLE, horizontalObstacle);
     this.load.image(VERTICAL_OBSTACLE, verticalObstacle);
 
+    this.load.spritesheet(FULLSCREEN, fullscreen, { frameWidth: 512, frameHeight: 512 });
+
     this.load.audio(EAT_GREEN_SOUND, eatGreenSound);
     this.load.audio(EAT_RED_SOUND, eatRedSound);
     this.load.audio(DEAD_SOUND, deadSound);
@@ -63,8 +67,29 @@ export default class PlayScene extends Scene {
     });
 
     this.background = this.add.tileSprite(0, 0, 1920, 1920, BACKGROUND).setOrigin(0);
+
+    const fsButton = this.add.image(1920 - 16, 16, FULLSCREEN, 0).setOrigin(1, 0).setInteractive();
+    fsButton.setScale(0.1).setScrollFactor(0);
+
+    if (this.scale.isFullscreen) {
+      fsButton.setFrame(1);
+    } else {
+      fsButton.setFrame(0);
+    }
+
+    fsButton.on('pointerup', () => {
+      if (this.scale.isFullscreen) {
+        fsButton.setFrame(0);
+        this.scale.stopFullscreen();
+      } else {
+        fsButton.setFrame(1);
+        this.scale.startFullscreen();
+      }
+    }, this);
+
     const boundWidth = this.background.width;
     const boundHeight = this.background.height;
+
     this.physics.world.setBounds(0, 0, boundWidth, boundHeight, true, true, true, true);
 
     this.body = this.add.group({ key: SNAKE_BODY, frameQuantity: 2 });
