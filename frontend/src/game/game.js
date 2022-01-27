@@ -11,6 +11,7 @@ function launch(containerId) {
       width: 1920,
       height: 1080,
       parent: containerId,
+      fullscreenTarget: containerId,
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
