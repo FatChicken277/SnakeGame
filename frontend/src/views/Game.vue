@@ -2,7 +2,7 @@
   <div class="game">
     <v-container class="fill-height">
       <v-row justify="center" style="margin-top: 15vh;">
-        <v-col cols="12" xs="12" sm="12" md="12" lg="8">
+        <v-col class="my-auto" cols="12" xs="12" sm="12" md="12" lg="8">
           <v-sheet
             class="game-sheet px-5"
             rounded
