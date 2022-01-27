@@ -2,22 +2,15 @@ package json
 
 import (
 	"bytes"
-	"context"
-	"encoding/json"
-
-	"github.com/goccy/go-json/internal/encoder"
+	"errors"
+	"strconv"
+	"unsafe"
 )
 
 // Marshaler is the interface implemented by types that
 // can marshal themselves into valid JSON.
 type Marshaler interface {
 	MarshalJSON() ([]byte, error)
-}
-
-// MarshalerContext is the interface implemented by types that
-// can marshal themselves into valid JSON with context.Context.
-type MarshalerContext interface {
-	MarshalJSON(context.Context) ([]byte, error)
 }
 
 // Unmarshaler is the interface implemented by types
@@ -30,12 +23,6 @@ type MarshalerContext interface {
 // Unmarshalers implement UnmarshalJSON([]byte("null")) as a no-op.
 type Unmarshaler interface {
 	UnmarshalJSON([]byte) error
-}
-
-// UnmarshalerContext is the interface implemented by types
-// that can unmarshal with context.Context a JSON description of themselves.
-type UnmarshalerContext interface {
-	UnmarshalJSON(context.Context, []byte) error
 }
 
 // Marshal returns the JSON encoding of v.
@@ -171,19 +158,36 @@ func Marshal(v interface{}) ([]byte, error) {
 	return MarshalWithOption(v)
 }
 
-// MarshalNoEscape returns the JSON encoding of v and doesn't escape v.
+// MarshalNoEscape
 func MarshalNoEscape(v interface{}) ([]byte, error) {
-	return marshalNoEscape(v)
-}
-
-// MarshalContext returns the JSON encoding of v with context.Context and EncodeOption.
-func MarshalContext(ctx context.Context, v interface{}, optFuncs ...EncodeOptionFunc) ([]byte, error) {
-	return marshalContext(ctx, v, optFuncs...)
+	enc := newEncoder()
+	header := (*interfaceHeader)(unsafe.Pointer(&v))
+	bytes, err := enc.encodeForMarshal(header, v == nil)
+	if err != nil {
+		enc.release()
+		return nil, err
+	}
+	enc.release()
+	return bytes, nil
 }
 
 // MarshalWithOption returns the JSON encoding of v with EncodeOption.
-func MarshalWithOption(v interface{}, optFuncs ...EncodeOptionFunc) ([]byte, error) {
-	return marshal(v, optFuncs...)
+func MarshalWithOption(v interface{}, opts ...EncodeOption) ([]byte, error) {
+	enc := newEncoder()
+	for _, opt := range opts {
+		if err := opt(enc); err != nil {
+			return nil, err
+		}
+	}
+	header := (*interfaceHeader)(unsafe.Pointer(&v))
+	enc.ptr = header.ptr
+	bytes, err := enc.encodeForMarshal(header, v == nil)
+	if err != nil {
+		enc.release()
+		return nil, err
+	}
+	enc.release()
+	return bytes, nil
 }
 
 // MarshalIndent is like Marshal but applies Indent to format the output.
@@ -194,8 +198,24 @@ func MarshalIndent(v interface{}, prefix, indent string) ([]byte, error) {
 }
 
 // MarshalIndentWithOption is like Marshal but applies Indent to format the output with EncodeOption.
-func MarshalIndentWithOption(v interface{}, prefix, indent string, optFuncs ...EncodeOptionFunc) ([]byte, error) {
-	return marshalIndent(v, prefix, indent, optFuncs...)
+func MarshalIndentWithOption(v interface{}, prefix, indent string, opts ...EncodeOption) ([]byte, error) {
+	var b *bytes.Buffer
+	enc := NewEncoder(b)
+	for _, opt := range opts {
+		if err := opt(enc); err != nil {
+			return nil, err
+		}
+	}
+	enc.SetIndent(prefix, indent)
+	header := (*interfaceHeader)(unsafe.Pointer(&v))
+	enc.ptr = header.ptr
+	bytes, err := enc.encodeForMarshal(header, v == nil)
+	if err != nil {
+		enc.release()
+		return nil, err
+	}
+	enc.release()
+	return bytes, nil
 }
 
 // Unmarshal parses the JSON-encoded data and stores the result
@@ -273,22 +293,17 @@ func MarshalIndentWithOption(v interface{}, prefix, indent string, optFuncs ...E
 // character U+FFFD.
 //
 func Unmarshal(data []byte, v interface{}) error {
-	return unmarshal(data, v)
+	src := make([]byte, len(data)+1) // append nul byte to end
+	copy(src, data)
+	var dec Decoder
+	return dec.decodeForUnmarshal(src, v)
 }
 
-// UnmarshalContext parses the JSON-encoded data and stores the result
-// in the value pointed to by v. If you implement the UnmarshalerContext interface,
-// call it with ctx as an argument.
-func UnmarshalContext(ctx context.Context, data []byte, v interface{}, optFuncs ...DecodeOptionFunc) error {
-	return unmarshalContext(ctx, data, v)
-}
-
-func UnmarshalWithOption(data []byte, v interface{}, optFuncs ...DecodeOptionFunc) error {
-	return unmarshal(data, v, optFuncs...)
-}
-
-func UnmarshalNoEscape(data []byte, v interface{}, optFuncs ...DecodeOptionFunc) error {
-	return unmarshalNoEscape(data, v, optFuncs...)
+func UnmarshalNoEscape(data []byte, v interface{}) error {
+	src := make([]byte, len(data)+1) // append nul byte to end
+	copy(src, data)
+	var dec Decoder
+	return dec.decodeForUnmarshalNoEscape(src, v)
 }
 
 // A Token holds a value of one of these types:
@@ -300,23 +315,69 @@ func UnmarshalNoEscape(data []byte, v interface{}, optFuncs ...DecodeOptionFunc)
 //	string, for JSON string literals
 //	nil, for JSON null
 //
-type Token = json.Token
+type Token interface{}
 
 // A Number represents a JSON number literal.
-type Number = json.Number
+type Number string
+
+// String returns the literal text of the number.
+func (n Number) String() string { return string(n) }
+
+// Float64 returns the number as a float64.
+func (n Number) Float64() (float64, error) {
+	return strconv.ParseFloat(string(n), 64)
+}
+
+// Int64 returns the number as an int64.
+func (n Number) Int64() (int64, error) {
+	return strconv.ParseInt(string(n), 10, 64)
+}
+
+func (n Number) MarshalJSON() ([]byte, error) {
+	if n == "" {
+		return []byte("0"), nil
+	}
+	if _, err := n.Float64(); err != nil {
+		return nil, err
+	}
+	return []byte(n), nil
+}
+
+func (n *Number) UnmarshalJSON(b []byte) error {
+	s := string(b)
+	if _, err := strconv.ParseFloat(s, 64); err != nil {
+		return &SyntaxError{msg: err.Error()}
+	}
+	*n = Number(s)
+	return nil
+}
 
 // RawMessage is a raw encoded JSON value.
 // It implements Marshaler and Unmarshaler and can
 // be used to delay JSON decoding or precompute a JSON encoding.
-type RawMessage = json.RawMessage
+type RawMessage []byte
 
-// A Delim is a JSON array or object delimiter, one of [ ] { or }.
-type Delim = json.Delim
+// MarshalJSON returns m as the JSON encoding of m.
+func (m RawMessage) MarshalJSON() ([]byte, error) {
+	if m == nil {
+		return []byte("null"), nil
+	}
+	return m, nil
+}
+
+// UnmarshalJSON sets *m to a copy of data.
+func (m *RawMessage) UnmarshalJSON(data []byte) error {
+	if m == nil {
+		return errors.New("json.RawMessage: UnmarshalJSON on nil pointer")
+	}
+	*m = data
+	return nil
+}
 
 // Compact appends to dst the JSON-encoded src with
 // insignificant space characters elided.
 func Compact(dst *bytes.Buffer, src []byte) error {
-	return encoder.Compact(dst, src, false)
+	return compact(dst, src, false)
 }
 
 // Indent appends to dst an indented form of the JSON-encoded src.
@@ -331,7 +392,7 @@ func Compact(dst *bytes.Buffer, src []byte) error {
 // For example, if src has no trailing spaces, neither will dst;
 // if src ends in a trailing newline, so will dst.
 func Indent(dst *bytes.Buffer, src []byte, prefix, indent string) error {
-	return encoder.Indent(dst, src, prefix, indent)
+	return encodeWithIndent(dst, src, prefix, indent)
 }
 
 // HTMLEscape appends to dst the JSON-encoded src with <, >, &, U+2028 and U+2029
@@ -347,25 +408,19 @@ func HTMLEscape(dst *bytes.Buffer, src []byte) {
 	if err := dec.Decode(&v); err != nil {
 		return
 	}
-	buf, _ := marshal(v)
-	dst.Write(buf)
+	enc := NewEncoder(dst)
+	enc.SetEscapeHTML(true)
+	header := (*interfaceHeader)(unsafe.Pointer(&v))
+	enc.ptr = header.ptr
+	enc.buf, _ = enc.encode(header, v == nil)
+	dst.Write(enc.buf[:len(enc.buf)-1]) // remove last ',' character
 }
 
 // Valid reports whether data is a valid JSON encoding.
 func Valid(data []byte) bool {
 	var v interface{}
-	decoder := NewDecoder(bytes.NewReader(data))
-	err := decoder.Decode(&v)
-	if err != nil {
+	if err := Unmarshal(data, &v); err != nil {
 		return false
 	}
-	if !decoder.More() {
-		return true
-	}
-	return decoder.InputOffset() >= int64(len(data))
-}
-
-func init() {
-	encoder.Marshal = Marshal
-	encoder.Unmarshal = Unmarshal
+	return true
 }

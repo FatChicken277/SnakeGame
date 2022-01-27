@@ -103,7 +103,6 @@ func (i *iter) Next(ctx context.Context) bool {
 		return true
 	}
 
-	//nolint:govet
 	return false // never reached
 }
 

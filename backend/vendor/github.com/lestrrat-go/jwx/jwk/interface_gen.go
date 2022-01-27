@@ -16,7 +16,7 @@ const (
 	KeyOpsKey                 = "key_ops"
 	AlgorithmKey              = "alg"
 	KeyIDKey                  = "kid"
-	X509URLKey                = "x58"
+	X509URLKey                = "x5u"
 	X509CertChainKey          = "x5c"
 	X509CertThumbprintKey     = "x5t"
 	X509CertThumbprintS256Key = "x5t#S256"
@@ -83,12 +83,6 @@ type Key interface {
 	Clone() (Key, error)
 
 	KeyType() jwa.KeyType
-
-	// PublicKey creates the corresponding PublicKey type for this object.
-	// All fields are copied onto the new public key, except for those that are not allowed.
-	//
-	// If the key is already a public key, it returns a new copy minus the disallowed fields as above.
-	PublicKey() (Key, error)
 	KeyUsage() string
 	KeyOps() KeyOperationList
 	Algorithm() string
@@ -97,6 +91,4 @@ type Key interface {
 	X509CertChain() []*x509.Certificate
 	X509CertThumbprint() string
 	X509CertThumbprintS256() string
-
-	makePairs() []*HeaderPair
 }

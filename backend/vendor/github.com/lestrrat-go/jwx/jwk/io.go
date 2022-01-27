@@ -5,25 +5,19 @@ package jwk
 import "os"
 
 // ReadFileOption describes options that can be passed to ReadFile.
+// Currently there are no options available that can be passed to ReadFile, but
+// it is provided here for anticipated future additions
 type ReadFileOption interface {
 	Option
 	readFileOption()
 }
 
-func ReadFile(path string, options ...ReadFileOption) (Set, error) {
-	var parseOptions []ParseOption
-	for _, option := range options {
-		switch option := option.(type) {
-		case ParseOption:
-			parseOptions = append(parseOptions, option)
-		}
-	}
-
+func ReadFile(path string, _ ...ReadFileOption) (Set, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 
 	defer f.Close()
-	return ParseReader(f, parseOptions...)
+	return ParseReader(f)
 }

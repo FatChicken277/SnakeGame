@@ -61,11 +61,7 @@ func (c *controller) loop() {
 			}
 			c.timer.Reset(d)
 		case <-c.timer.C:
-			select {
-			case <-c.ctx.Done():
-				return
-			case c.next <- struct{}{}:
-			}
+			c.next <- struct{}{}
 			if c.maxRetries > 0 {
 				c.retries++
 			}

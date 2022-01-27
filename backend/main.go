@@ -4,6 +4,7 @@ import (
 	"SnakeGame/backend/handlers"
 	"SnakeGame/backend/storage"
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -18,6 +19,7 @@ var (
 )
 
 func main() {
+	port := os.Getenv("PORT")
 	router := chi.NewRouter()
 
 	router.Use(cors.Handler(cors.Options{
@@ -49,7 +51,9 @@ func main() {
 		})
 	})
 
-	err = http.ListenAndServe(":"+os.Getenv("PORT"), router)
+	fmt.Println("Server running on: " + port)
+
+	err = http.ListenAndServe(":"+port, router)
 	if err != nil {
 		handlers.LogError(err)
 	}

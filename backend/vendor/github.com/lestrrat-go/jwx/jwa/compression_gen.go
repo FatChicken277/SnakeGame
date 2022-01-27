@@ -4,8 +4,6 @@ package jwa
 
 import (
 	"fmt"
-	"sort"
-	"sync"
 
 	"github.com/pkg/errors"
 )
@@ -18,28 +16,6 @@ const (
 	Deflate    CompressionAlgorithm = "DEF" // DEFLATE (RFC 1951)
 	NoCompress CompressionAlgorithm = ""    // No compression
 )
-
-var allCompressionAlgorithms = map[CompressionAlgorithm]struct{}{
-	Deflate:    {},
-	NoCompress: {},
-}
-
-var listCompressionAlgorithmOnce sync.Once
-var listCompressionAlgorithm []CompressionAlgorithm
-
-// CompressionAlgorithms returns a list of all available values for CompressionAlgorithm
-func CompressionAlgorithms() []CompressionAlgorithm {
-	listCompressionAlgorithmOnce.Do(func() {
-		listCompressionAlgorithm = make([]CompressionAlgorithm, 0, len(allCompressionAlgorithms))
-		for v := range allCompressionAlgorithms {
-			listCompressionAlgorithm = append(listCompressionAlgorithm, v)
-		}
-		sort.Slice(listCompressionAlgorithm, func(i, j int) bool {
-			return string(listCompressionAlgorithm[i]) < string(listCompressionAlgorithm[j])
-		})
-	})
-	return listCompressionAlgorithm
-}
 
 // Accept is used when conversion from values given by
 // outside sources (such as JSON payloads) is required
@@ -59,7 +35,9 @@ func (v *CompressionAlgorithm) Accept(value interface{}) error {
 		}
 		tmp = CompressionAlgorithm(s)
 	}
-	if _, ok := allCompressionAlgorithms[tmp]; !ok {
+	switch tmp {
+	case Deflate, NoCompress:
+	default:
 		return errors.Errorf(`invalid jwa.CompressionAlgorithm value`)
 	}
 

@@ -37,7 +37,7 @@ const (
 // func SetFoo(tok jwt.Token) error
 // func GetFoo(tok jwt.Token) (*Customtyp, error)
 //
-// Embedding jwt.Token into another struct is not recommended, because
+// Embedding jwt.Token into another struct is not recommended, becase
 // jwt.Token needs to handle private claims, and this really does not
 // work well when it is embedded in other structure
 type Token interface {
@@ -59,7 +59,6 @@ type Token interface {
 }
 type stdToken struct {
 	mu            *sync.RWMutex
-	dc            DecodeCtx          // per-object context for decoding
 	audience      types.StringList   // https://tools.ietf.org/html/rfc7519#section-4.1.3
 	expiration    *types.NumericDate // https://tools.ietf.org/html/rfc7519#section-4.1.4
 	issuedAt      *types.NumericDate // https://tools.ietf.org/html/rfc7519#section-4.1.6
@@ -68,6 +67,16 @@ type stdToken struct {
 	notBefore     *types.NumericDate // https://tools.ietf.org/html/rfc7519#section-4.1.5
 	subject       *string            // https://tools.ietf.org/html/rfc7519#section-4.1.2
 	privateClaims map[string]interface{}
+}
+
+type stdTokenMarshalProxy struct {
+	Xaudience   types.StringList   `json:"aud,omitempty"`
+	Xexpiration *types.NumericDate `json:"exp,omitempty"`
+	XissuedAt   *types.NumericDate `json:"iat,omitempty"`
+	Xissuer     *string            `json:"iss,omitempty"`
+	XjwtID      *string            `json:"jti,omitempty"`
+	XnotBefore  *types.NumericDate `json:"nbf,omitempty"`
+	Xsubject    *string            `json:"sub,omitempty"`
 }
 
 // New creates a standard token, with minimal knowledge of
@@ -159,22 +168,6 @@ func (t *stdToken) Remove(key string) error {
 func (t *stdToken) Set(name string, value interface{}) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.setNoLock(name, value)
-}
-
-func (t *stdToken) DecodeCtx() DecodeCtx {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.dc
-}
-
-func (t *stdToken) SetDecodeCtx(v DecodeCtx) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.dc = v
-}
-
-func (t *stdToken) setNoLock(name string, value interface{}) error {
 	switch name {
 	case AudienceKey:
 		var acceptor types.StringList
@@ -304,7 +297,7 @@ func (t *stdToken) makePairs() []*ClaimPair {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	pairs := make([]*ClaimPair, 0, 7)
+	var pairs []*ClaimPair
 	if t.audience != nil {
 		v := t.audience.Get()
 		pairs = append(pairs, &ClaimPair{Key: AudienceKey, Value: v})
@@ -336,9 +329,6 @@ func (t *stdToken) makePairs() []*ClaimPair {
 	for k, v := range t.privateClaims {
 		pairs = append(pairs, &ClaimPair{Key: k, Value: v})
 	}
-	sort.Slice(pairs, func(i, j int) bool {
-		return pairs[i].Key.(string) < pairs[j].Key.(string)
-	})
 	return pairs
 }
 
@@ -407,21 +397,14 @@ LOOP:
 					return errors.Wrapf(err, `failed to decode value for key %s`, SubjectKey)
 				}
 			default:
-				if dc := t.dc; dc != nil {
-					if localReg := dc.Registry(); localReg != nil {
-						decoded, err := localReg.Decode(dec, tok)
-						if err == nil {
-							t.setNoLock(tok, decoded)
-							continue
-						}
-					}
+				var decoded interface{}
+				if err := dec.Decode(&decoded); err != nil {
+					return errors.Wrapf(err, `failed to decode field %s`, tok)
 				}
-				decoded, err := registry.Decode(dec, tok)
-				if err == nil {
-					t.setNoLock(tok, decoded)
-					continue
+				if t.privateClaims == nil {
+					t.privateClaims = make(map[string]interface{})
 				}
-				return errors.Wrapf(err, `could not decode field %s`, tok)
+				t.privateClaims[tok] = decoded
 			}
 		default:
 			return errors.Errorf(`invalid token %T`, tok)
@@ -433,33 +416,44 @@ LOOP:
 func (t stdToken) MarshalJSON() ([]byte, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	data := make(map[string]interface{})
+	fields := make([]string, 0, 7)
+	for iter := t.Iterate(ctx); iter.Next(ctx); {
+		pair := iter.Pair()
+		fields = append(fields, pair.Key.(string))
+		data[pair.Key.(string)] = pair.Value
+	}
+
+	sort.Strings(fields)
 	buf := pool.GetBytesBuffer()
 	defer pool.ReleaseBytesBuffer(buf)
 	buf.WriteByte('{')
 	enc := json.NewEncoder(buf)
-	for i, pair := range t.makePairs() {
-		f := pair.Key.(string)
+	for i, f := range fields {
 		if i > 0 {
 			buf.WriteByte(',')
 		}
 		buf.WriteRune('"')
 		buf.WriteString(f)
 		buf.WriteString(`":`)
-		switch f {
-		case AudienceKey:
-			if err := json.EncodeAudience(enc, pair.Value.([]string)); err != nil {
-				return nil, errors.Wrap(err, `failed to encode "aud"`)
-			}
-			continue
-		case ExpirationKey, IssuedAtKey, NotBeforeKey:
-			enc.Encode(pair.Value.(time.Time).Unix())
-			continue
-		}
-		switch v := pair.Value.(type) {
+		v := data[f]
+		switch v := v.(type) {
 		case []byte:
 			buf.WriteRune('"')
 			buf.WriteString(base64.EncodeToString(v))
 			buf.WriteRune('"')
+		case time.Time:
+			switch f {
+			case ExpirationKey, IssuedAtKey, NotBeforeKey:
+				enc.Encode(v.Unix())
+			default:
+				if err := enc.Encode(v); err != nil {
+					return nil, errors.Wrapf(err, `failed to marshal field %s`, f)
+				}
+				buf.Truncate(buf.Len() - 1)
+			}
 		default:
 			if err := enc.Encode(v); err != nil {
 				return nil, errors.Wrapf(err, `failed to marshal field %s`, f)

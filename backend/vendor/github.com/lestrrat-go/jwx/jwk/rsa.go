@@ -1,13 +1,14 @@
 package jwk
 
 import (
+	"context"
 	"crypto"
 	"crypto/rsa"
 	"encoding/binary"
 	"math/big"
 
-	"github.com/lestrrat-go/blackmagic"
 	"github.com/lestrrat-go/jwx/internal/base64"
+	"github.com/lestrrat-go/jwx/internal/blackmagic"
 	"github.com/lestrrat-go/jwx/internal/pool"
 	"github.com/pkg/errors"
 )
@@ -16,56 +17,43 @@ func (k *rsaPrivateKey) FromRaw(rawKey *rsa.PrivateKey) error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	d, err := bigIntToBytes(rawKey.D)
-	if err != nil {
-		return errors.Wrap(err, `invalid rsa.PrivateKey`)
-	}
-	k.d = d
-
+	k.d = rawKey.D.Bytes()
 	if len(rawKey.Primes) < 2 {
 		return errors.Errorf(`invalid number of primes in rsa.PrivateKey: need 2, got %d`, len(rawKey.Primes))
 	}
 
-	p, err := bigIntToBytes(rawKey.Primes[0])
-	if err != nil {
-		return errors.Wrap(err, `invalid rsa.PrivateKey`)
-	}
-	k.p = p
+	k.p = rawKey.Primes[0].Bytes()
+	k.q = rawKey.Primes[1].Bytes()
 
-	q, err := bigIntToBytes(rawKey.Primes[1])
-	if err != nil {
-		return errors.Wrap(err, `invalid rsa.PrivateKey`)
+	if v := rawKey.Precomputed.Dp; v != nil {
+		k.dp = v.Bytes()
 	}
-	k.q = q
-
-	// dp, dq, qi are optional values
-	if v, err := bigIntToBytes(rawKey.Precomputed.Dp); err == nil {
-		k.dp = v
+	if v := rawKey.Precomputed.Dq; v != nil {
+		k.dq = v.Bytes()
 	}
-	if v, err := bigIntToBytes(rawKey.Precomputed.Dq); err == nil {
-		k.dq = v
-	}
-	if v, err := bigIntToBytes(rawKey.Precomputed.Qinv); err == nil {
-		k.qi = v
+	if v := rawKey.Precomputed.Qinv; v != nil {
+		k.qi = v.Bytes()
 	}
 
-	// public key part
-	n, e, err := rsaPublicKeyByteValuesFromRaw(&rawKey.PublicKey)
-	if err != nil {
-		return errors.Wrap(err, `invalid rsa.PrivateKey`)
+	k.n = rawKey.PublicKey.N.Bytes()
+	data := make([]byte, 8)
+	binary.BigEndian.PutUint64(data, uint64(rawKey.PublicKey.E))
+	i := 0
+	for ; i < len(data); i++ {
+		if data[i] != 0x0 {
+			break
+		}
 	}
-	k.n = n
-	k.e = e
+	k.e = data[i:]
 
 	return nil
 }
 
-func rsaPublicKeyByteValuesFromRaw(rawKey *rsa.PublicKey) ([]byte, []byte, error) {
-	n, err := bigIntToBytes(rawKey.N)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, `invalid rsa.PublicKey`)
-	}
+func (k *rsaPublicKey) FromRaw(rawKey *rsa.PublicKey) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
 
+	k.n = rawKey.N.Bytes()
 	data := make([]byte, 8)
 	binary.BigEndian.PutUint64(data, uint64(rawKey.E))
 	i := 0
@@ -74,19 +62,7 @@ func rsaPublicKeyByteValuesFromRaw(rawKey *rsa.PublicKey) ([]byte, []byte, error
 			break
 		}
 	}
-	return n, data[i:], nil
-}
-
-func (k *rsaPublicKey) FromRaw(rawKey *rsa.PublicKey) error {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-
-	n, e, err := rsaPublicKeyByteValuesFromRaw(rawKey)
-	if err != nil {
-		return errors.Wrap(err, `invalid rsa.PrivateKey`)
-	}
-	k.n = n
-	k.e = e
+	k.e = data[i:]
 
 	return nil
 }
@@ -166,12 +142,13 @@ func (k *rsaPublicKey) Raw(v interface{}) error {
 }
 
 func makeRSAPublicKey(v interface {
-	makePairs() []*HeaderPair
+	Iterate(context.Context) HeaderIterator
 }) (Key, error) {
 	newKey := NewRSAPublicKey()
 
 	// Iterate and copy everything except for the bits that should not be in the public key
-	for _, pair := range v.makePairs() {
+	for iter := v.Iterate(context.TODO()); iter.Next(context.TODO()); {
+		pair := iter.Pair()
 		switch pair.Key {
 		case RSADKey, RSADPKey, RSADQKey, RSAPKey, RSAQKey, RSAQIKey:
 			continue

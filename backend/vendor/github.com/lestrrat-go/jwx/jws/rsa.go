@@ -10,105 +10,129 @@ import (
 	"github.com/pkg/errors"
 )
 
-var rsaSigners map[jwa.SignatureAlgorithm]*rsaSigner
-var rsaVerifiers map[jwa.SignatureAlgorithm]*rsaVerifier
+var rsaSignFuncs = map[jwa.SignatureAlgorithm]rsaSignFunc{}
+var rsaVerifyFuncs = map[jwa.SignatureAlgorithm]rsaVerifyFunc{}
 
 func init() {
 	algs := map[jwa.SignatureAlgorithm]struct {
-		Hash crypto.Hash
-		PSS  bool
+		Hash       crypto.Hash
+		SignFunc   func(crypto.Hash) rsaSignFunc
+		VerifyFunc func(crypto.Hash) rsaVerifyFunc
 	}{
 		jwa.RS256: {
-			Hash: crypto.SHA256,
+			Hash:       crypto.SHA256,
+			SignFunc:   makeSignPKCS1v15,
+			VerifyFunc: makeVerifyPKCS1v15,
 		},
 		jwa.RS384: {
-			Hash: crypto.SHA384,
+			Hash:       crypto.SHA384,
+			SignFunc:   makeSignPKCS1v15,
+			VerifyFunc: makeVerifyPKCS1v15,
 		},
 		jwa.RS512: {
-			Hash: crypto.SHA512,
+			Hash:       crypto.SHA512,
+			SignFunc:   makeSignPKCS1v15,
+			VerifyFunc: makeVerifyPKCS1v15,
 		},
 		jwa.PS256: {
-			Hash: crypto.SHA256,
-			PSS:  true,
+			Hash:       crypto.SHA256,
+			SignFunc:   makeSignPSS,
+			VerifyFunc: makeVerifyPSS,
 		},
 		jwa.PS384: {
-			Hash: crypto.SHA384,
-			PSS:  true,
+			Hash:       crypto.SHA384,
+			SignFunc:   makeSignPSS,
+			VerifyFunc: makeVerifyPSS,
 		},
 		jwa.PS512: {
-			Hash: crypto.SHA512,
-			PSS:  true,
+			Hash:       crypto.SHA512,
+			SignFunc:   makeSignPSS,
+			VerifyFunc: makeVerifyPSS,
 		},
 	}
 
-	rsaSigners = make(map[jwa.SignatureAlgorithm]*rsaSigner)
-	rsaVerifiers = make(map[jwa.SignatureAlgorithm]*rsaVerifier)
 	for alg, item := range algs {
-		rsaSigners[alg] = &rsaSigner{
-			alg:  alg,
-			hash: item.Hash,
-			pss:  item.PSS,
-		}
-		rsaVerifiers[alg] = &rsaVerifier{
-			alg:  alg,
-			hash: item.Hash,
-			pss:  item.PSS,
-		}
+		rsaSignFuncs[alg] = item.SignFunc(item.Hash)
+		rsaVerifyFuncs[alg] = item.VerifyFunc(item.Hash)
 	}
 }
 
-type rsaSigner struct {
-	alg  jwa.SignatureAlgorithm
-	hash crypto.Hash
-	pss  bool
+func makeSignPKCS1v15(hash crypto.Hash) rsaSignFunc {
+	return func(payload []byte, key *rsa.PrivateKey) ([]byte, error) {
+		h := hash.New()
+		if _, err := h.Write(payload); err != nil {
+			return nil, errors.Wrap(err, "failed to write payload using SignPKCS1v15")
+		}
+		return rsa.SignPKCS1v15(rand.Reader, key, hash, h.Sum(nil))
+	}
+}
+
+func makeSignPSS(hash crypto.Hash) rsaSignFunc {
+	return func(payload []byte, key *rsa.PrivateKey) ([]byte, error) {
+		h := hash.New()
+		if _, err := h.Write(payload); err != nil {
+			return nil, errors.Wrap(err, "failed to write payload using SignPSS")
+		}
+		return rsa.SignPSS(rand.Reader, key, hash, h.Sum(nil), &rsa.PSSOptions{
+			SaltLength: rsa.PSSSaltLengthAuto,
+		})
+	}
 }
 
 func newRSASigner(alg jwa.SignatureAlgorithm) Signer {
-	return rsaSigners[alg]
+	return &RSASigner{
+		alg:  alg,
+		sign: rsaSignFuncs[alg], // we know this will succeed
+	}
 }
 
-func (rs *rsaSigner) Algorithm() jwa.SignatureAlgorithm {
-	return rs.alg
+func (s RSASigner) Algorithm() jwa.SignatureAlgorithm {
+	return s.alg
 }
 
-func (rs *rsaSigner) Sign(payload []byte, key interface{}) ([]byte, error) {
+// Sign creates a signature using crypto/rsa. key must be a non-nil instance of
+// `*"crypto/rsa".PrivateKey`.
+func (s RSASigner) Sign(payload []byte, key interface{}) ([]byte, error) {
 	if key == nil {
 		return nil, errors.New(`missing private key while signing payload`)
 	}
 
-	signer, ok := key.(crypto.Signer)
-	if !ok {
-		var privkey rsa.PrivateKey
-		if err := keyconv.RSAPrivateKey(&privkey, key); err != nil {
-			return nil, errors.Wrapf(err, `failed to retrieve rsa.PrivateKey out of %T`, key)
-		}
-		signer = &privkey
+	var privkey rsa.PrivateKey
+	if err := keyconv.RSAPrivateKey(&privkey, key); err != nil {
+		return nil, errors.Wrapf(err, `failed to retrieve rsa.PrivateKey out of %T`, key)
 	}
 
-	h := rs.hash.New()
-	if _, err := h.Write(payload); err != nil {
-		return nil, errors.Wrap(err, "failed to write payload to hash")
-	}
-	if rs.pss {
-		return signer.Sign(rand.Reader, h.Sum(nil), &rsa.PSSOptions{
-			Hash:       rs.hash,
-			SaltLength: rsa.PSSSaltLengthEqualsHash,
-		})
-	}
-	return signer.Sign(rand.Reader, h.Sum(nil), rs.hash)
+	return s.sign(payload, &privkey)
 }
 
-type rsaVerifier struct {
-	alg  jwa.SignatureAlgorithm
-	hash crypto.Hash
-	pss  bool
+func makeVerifyPKCS1v15(hash crypto.Hash) rsaVerifyFunc {
+	return func(payload, signature []byte, key *rsa.PublicKey) error {
+		h := hash.New()
+		if _, err := h.Write(payload); err != nil {
+			return errors.Wrap(err, "failed to write payload using PKCS1v15")
+		}
+
+		return rsa.VerifyPKCS1v15(key, hash, h.Sum(nil), signature)
+	}
+}
+
+func makeVerifyPSS(hash crypto.Hash) rsaVerifyFunc {
+	return func(payload, signature []byte, key *rsa.PublicKey) error {
+		h := hash.New()
+		if _, err := h.Write(payload); err != nil {
+			return errors.Wrap(err, "failed to write payload using PSS")
+		}
+		return rsa.VerifyPSS(key, hash, h.Sum(nil), signature, nil)
+	}
 }
 
 func newRSAVerifier(alg jwa.SignatureAlgorithm) Verifier {
-	return rsaVerifiers[alg]
+	return &RSAVerifier{
+		verify: rsaVerifyFuncs[alg], // we know this will succeed
+	}
 }
 
-func (rv *rsaVerifier) Verify(payload, signature []byte, key interface{}) error {
+func (v RSAVerifier) Verify(payload, signature []byte, key interface{}) error {
 	if key == nil {
 		return errors.New(`missing public key while verifying payload`)
 	}
@@ -118,13 +142,5 @@ func (rv *rsaVerifier) Verify(payload, signature []byte, key interface{}) error 
 		return errors.Wrapf(err, `failed to retrieve rsa.PublicKey out of %T`, key)
 	}
 
-	h := rv.hash.New()
-	if _, err := h.Write(payload); err != nil {
-		return errors.Wrap(err, "failed to write payload to hash")
-	}
-
-	if rv.pss {
-		return rsa.VerifyPSS(&pubkey, rv.hash, h.Sum(nil), signature, nil)
-	}
-	return rsa.VerifyPKCS1v15(&pubkey, rv.hash, h.Sum(nil), signature)
+	return v.verify(payload, signature, &pubkey)
 }

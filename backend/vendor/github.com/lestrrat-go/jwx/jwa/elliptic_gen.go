@@ -4,8 +4,6 @@ package jwa
 
 import (
 	"fmt"
-	"sort"
-	"sync"
 
 	"github.com/pkg/errors"
 )
@@ -25,33 +23,6 @@ const (
 	X448                 EllipticCurveAlgorithm = "X448"
 )
 
-var allEllipticCurveAlgorithms = map[EllipticCurveAlgorithm]struct{}{
-	Ed25519: {},
-	Ed448:   {},
-	P256:    {},
-	P384:    {},
-	P521:    {},
-	X25519:  {},
-	X448:    {},
-}
-
-var listEllipticCurveAlgorithmOnce sync.Once
-var listEllipticCurveAlgorithm []EllipticCurveAlgorithm
-
-// EllipticCurveAlgorithms returns a list of all available values for EllipticCurveAlgorithm
-func EllipticCurveAlgorithms() []EllipticCurveAlgorithm {
-	listEllipticCurveAlgorithmOnce.Do(func() {
-		listEllipticCurveAlgorithm = make([]EllipticCurveAlgorithm, 0, len(allEllipticCurveAlgorithms))
-		for v := range allEllipticCurveAlgorithms {
-			listEllipticCurveAlgorithm = append(listEllipticCurveAlgorithm, v)
-		}
-		sort.Slice(listEllipticCurveAlgorithm, func(i, j int) bool {
-			return string(listEllipticCurveAlgorithm[i]) < string(listEllipticCurveAlgorithm[j])
-		})
-	})
-	return listEllipticCurveAlgorithm
-}
-
 // Accept is used when conversion from values given by
 // outside sources (such as JSON payloads) is required
 func (v *EllipticCurveAlgorithm) Accept(value interface{}) error {
@@ -70,7 +41,9 @@ func (v *EllipticCurveAlgorithm) Accept(value interface{}) error {
 		}
 		tmp = EllipticCurveAlgorithm(s)
 	}
-	if _, ok := allEllipticCurveAlgorithms[tmp]; !ok {
+	switch tmp {
+	case Ed25519, Ed448, P256, P384, P521, X25519, X448:
+	default:
 		return errors.Errorf(`invalid jwa.EllipticCurveAlgorithm value`)
 	}
 
