@@ -10,7 +10,6 @@ SNAKE is a snake game based on the phaser3 graphics engine and on vuejs for the 
 - Npm
 - Vuejs
 - CockroachDB database
-- Postgresql
 
 ## Installation :wrench:
 
@@ -41,12 +40,13 @@ SNAKE is a snake game based on the phaser3 graphics engine and on vuejs for the 
   CLUSER= User name
   CLPWD= Password of database
   CLHOST= localhost
-  CLPORT= 26257
+  CLPORT= Cluster port 26257
   CLDB= Name of the database
-  CAPATH= Path of the cockroach certificates $HOME/.postgresql/  root.crt
-  DB= Database name
+  CAPATH= Path of the cockroach certificates $HOME/.postgresql/root.crt
+  CLNAME= Database name
   SECRET= JWT Secret
   ALLOWEDORIGINS= *
+  PORT= Server port 
   ```
 - Start the API:
 
